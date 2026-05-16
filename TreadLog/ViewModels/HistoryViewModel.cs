@@ -14,8 +14,9 @@ namespace TreadLog.ViewModels;
 /// </summary>
 public class HistoryViewModel : ViewModelBase
 {
-    private readonly IWorkoutRepository      _workoutRepo;
-    private readonly IUserSettingsRepository _settingsRepo;
+    private readonly IWorkoutRepository       _workoutRepo;
+    private readonly IUserSettingsRepository  _settingsRepo;
+    private readonly IDataPortabilityService? _portabilityService;
 
     // ── Session list ──────────────────────────────────────────────────────────
 
@@ -114,6 +115,20 @@ public class HistoryViewModel : ViewModelBase
     private readonly ICommand _deleteCommand;
     public ICommand DeleteCommand => _deleteCommand;
 
+    // Export/import take a file path as the command parameter (set by the View after dialog)
+    public ICommand ExportCsvCommand  { get; }
+    public ICommand ExportJsonCommand { get; }
+    public ICommand ImportCommand     { get; }
+
+    // ── Import status ─────────────────────────────────────────────────────────
+
+    private string _importStatusMessage = string.Empty;
+    public string ImportStatusMessage
+    {
+        get => _importStatusMessage;
+        private set => SetProperty(ref _importStatusMessage, value);
+    }
+
     // ── Backing full list (pre-filter) ────────────────────────────────────────
 
     private List<WorkoutSessionRow> _allRows = new();
@@ -122,11 +137,13 @@ public class HistoryViewModel : ViewModelBase
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public HistoryViewModel(
-        IWorkoutRepository      workoutRepo,
-        IUserSettingsRepository settingsRepo)
+        IWorkoutRepository        workoutRepo,
+        IUserSettingsRepository   settingsRepo,
+        IDataPortabilityService?  portabilityService = null)
     {
-        _workoutRepo  = workoutRepo  ?? throw new ArgumentNullException(nameof(workoutRepo));
-        _settingsRepo = settingsRepo ?? throw new ArgumentNullException(nameof(settingsRepo));
+        _workoutRepo        = workoutRepo        ?? throw new ArgumentNullException(nameof(workoutRepo));
+        _settingsRepo       = settingsRepo       ?? throw new ArgumentNullException(nameof(settingsRepo));
+        _portabilityService = portabilityService;
 
         LoadDataCommand = new RelayCommand(async () => await LoadDataAsync());
 
@@ -153,6 +170,10 @@ public class HistoryViewModel : ViewModelBase
         _deleteCommand = new RelayCommand(
             async () => await DeleteSelectedAsync(),
             () => SelectedSession != null && !IsBusy);
+
+        ExportCsvCommand  = new RelayCommand(async p => await ExportCsvAsync(p as string ?? ""));
+        ExportJsonCommand = new RelayCommand(async p => await ExportJsonAsync(p as string ?? ""));
+        ImportCommand     = new RelayCommand(async p => await ImportAsync(p as string ?? ""));
     }
 
     // ── Data loading ──────────────────────────────────────────────────────────
@@ -210,6 +231,39 @@ public class HistoryViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    // ── Export / Import ───────────────────────────────────────────────────────
+
+    public async Task ExportCsvAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || _portabilityService == null) return;
+        IsBusy = true;
+        try { await _portabilityService.ExportToCsvAsync(_allRows.Select(r => r.Source), filePath); }
+        finally { IsBusy = false; }
+    }
+
+    public async Task ExportJsonAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || _portabilityService == null) return;
+        IsBusy = true;
+        try { await _portabilityService.ExportToJsonAsync(_allRows.Select(r => r.Source), filePath); }
+        finally { IsBusy = false; }
+    }
+
+    public async Task ImportAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || _portabilityService == null) return;
+        IsBusy = true;
+        try
+        {
+            var result = await _portabilityService.ImportFromFileAsync(filePath);
+            ImportStatusMessage = result.Errors.Count > 0
+                ? $"Imported {result.InsertedRows} / {result.TotalRows} rows. {result.Errors.Count} error(s)."
+                : $"Imported {result.InsertedRows} of {result.TotalRows} rows ({result.SkippedRows} duplicates skipped).";
+            await LoadDataAsync();
+        }
+        finally { IsBusy = false; }
     }
 
     // ── Filter ────────────────────────────────────────────────────────────────

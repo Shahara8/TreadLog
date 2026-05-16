@@ -18,10 +18,11 @@ public class UserSettingsRepositoryTests : IAsyncLifetime
         _sut = new UserSettingsRepository(_dbService);
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        if (File.Exists(_dbPath)) File.Delete(_dbPath);
-        return Task.CompletedTask;
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        await Task.Delay(20);
+        try { if (File.Exists(_dbPath)) File.Delete(_dbPath); } catch { /* temp file — OS cleanup */ }
     }
 
     // ── GetAsync ───────────────────────────────────────────────────────────────

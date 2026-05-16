@@ -1,0 +1,123 @@
+<UserControl x:Class="TreadLog.Views.HistoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource AppBackground}">
+
+    <Grid Margin="32,28,32,28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- header -->
+            <RowDefinition Height="Auto"/>  <!-- filter bar -->
+            <RowDefinition Height="Auto"/>  <!-- import status -->
+            <RowDefinition Height="*"/>     <!-- data grid -->
+            <RowDefinition Height="Auto"/>  <!-- action row -->
+        </Grid.RowDefinitions>
+
+        <!-- ── Header ────────────────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="History" FontSize="26" FontWeight="Bold"/>
+            <TextBlock Text="All recorded sessions"
+                       FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- ── Filter bar ────────────────────────────────────────────────────── -->
+        <Border Grid.Row="1" Background="{StaticResource CardBackground}"
+                CornerRadius="10" Padding="16,12" Margin="0,0,0,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBox Grid.Column="0"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Tag="Search sessions…">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Background" Value="#273549"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+
+                <DatePicker Grid.Column="2" SelectedDate="{Binding FilterStartDate}"/>
+                <DatePicker Grid.Column="4" SelectedDate="{Binding FilterEndDate}"/>
+
+                <Button Grid.Column="6" Content="Apply Filter"
+                        Style="{StaticResource GhostButtonStyle}"
+                        Command="{Binding ApplyDateFilterCommand}"/>
+
+                <Button Grid.Column="8" Content="Clear"
+                        Style="{StaticResource GhostButtonStyle}"
+                        Command="{Binding ClearFilterCommand}"/>
+
+                <!-- Export/Import buttons -->
+                <Button Grid.Column="10" Content="Export CSV"
+                        Style="{StaticResource GhostButtonStyle}"
+                        Click="OnExportCsvClick"/>
+
+                <Button Grid.Column="12" Content="Import…"
+                        Style="{StaticResource GhostButtonStyle}"
+                        Click="OnImportClick"/>
+            </Grid>
+        </Border>
+
+        <!-- ── Import status ─────────────────────────────────────────────────── -->
+        <TextBlock Grid.Row="2"
+                   Text="{Binding ImportStatusMessage}"
+                   Foreground="{StaticResource SuccessBrush}"
+                   FontSize="12" Margin="0,0,0,10"
+                   Visibility="{Binding ImportStatusMessage,
+                       Converter={StaticResource NotEmptyToVisibilityConverter}}"/>
+
+        <!-- ── DataGrid ───────────────────────────────────────────────────────── -->
+        <Border Grid.Row="3" CornerRadius="10" Margin="0,0,0,12"
+                Background="{StaticResource CardBackground}">
+            <DataGrid ItemsSource="{Binding Sessions}"
+                      SelectedItem="{Binding SelectedSession, Mode=TwoWay}"
+                      IsReadOnly="True" Margin="0" BorderThickness="0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date"     Binding="{Binding DateDisplay}"     Width="120"/>
+                    <DataGridTextColumn Header="Distance" Binding="{Binding DistanceDisplay}" Width="90"/>
+                    <DataGridTextColumn Header="Duration" Binding="{Binding DurationDisplay}" Width="80"/>
+                    <DataGridTextColumn Header="Pace"     Binding="{Binding PaceDisplay}"     Width="80"/>
+                    <DataGridTextColumn Header="Speed"    Binding="{Binding SpeedDisplay}"    Width="90"/>
+                    <DataGridTextColumn Header="Incline"  Binding="{Binding InclineDisplay}"  Width="80"/>
+                    <DataGridTextColumn Header="Calories" Binding="{Binding CaloriesDisplay}" Width="90"/>
+                    <DataGridTextColumn Header="Heart Rate" Binding="{Binding HeartRateDisplay}" Width="90"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- ── Action row ─────────────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal">
+            <Button Content="Edit Selected"
+                    Style="{StaticResource GhostButtonStyle}"
+                    Command="{Binding EditCommand}" Margin="0,0,8,0"/>
+            <Button Content="Delete Selected"
+                    Style="{StaticResource GhostButtonStyle}"
+                    Command="{Binding DeleteCommand}"
+                    Foreground="{StaticResource ErrorBrush}"/>
+
+            <!-- Loading indicator -->
+            <TextBlock Text="Loading…"
+                       VerticalAlignment="Center" Margin="16,0,0,0"
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                       Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+        </StackPanel>
+
+    </Grid>
+</UserControl>

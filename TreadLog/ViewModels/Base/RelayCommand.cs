@@ -22,8 +22,10 @@ public sealed class RelayCommand : ICommand
 
     /// <summary>Parameterless convenience constructor.</summary>
     public RelayCommand(Action execute, Func<bool>? canExecute = null)
-        : this(_ => execute(), canExecute is null ? null : _ => canExecute())
     {
+        if (execute is null) throw new ArgumentNullException(nameof(execute));
+        _execute    = _ => execute();
+        _canExecute = canExecute is null ? null : _ => canExecute();
     }
 
     /// <inheritdoc />

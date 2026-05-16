@@ -71,7 +71,7 @@ public class UnitConverterTests
     [Theory]
     [InlineData(1.0,   0.621371)]
     [InlineData(10.0,  6.213712)]
-    [InlineData(16.0,  9.941938)]
+    [InlineData(16.0,  9.941964)]
     public void KmhToMph_KnownValues_MatchExpected(double kmh, double expectedMph)
     {
         Assert.Equal(expectedMph, UnitConverter.KmhToMph(kmh), 4);

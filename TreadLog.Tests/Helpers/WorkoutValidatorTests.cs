@@ -1,4 +1,5 @@
 using TreadLog.Helpers;
+using Xunit;
 
 namespace TreadLog.Tests.Helpers;
 

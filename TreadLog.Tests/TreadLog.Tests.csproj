@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TreadLog\TreadLog.csproj" />
+    <ProjectReference Include="..\TreadLog.Shared\TreadLog.Shared.csproj" />
   </ItemGroup>
 
 </Project>

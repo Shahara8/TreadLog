@@ -1,0 +1,189 @@
+@page "/"
+@inject ApiClient Api
+
+<div class="page-title">Dashboard</div>
+
+<!-- Date filter chips -->
+<div class="chip-group">
+    @foreach (var f in _filters)
+    {
+        <button class="chip @(_activeFilter == f.Key ? "active" : "")"
+                @onclick="() => SetFilter(f.Key)">@f.Label</button>
+    }
+</div>
+
+@if (_loading)
+{
+    <div class="text-muted">Loading...</div>
+}
+else if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else
+{
+    <!-- KPI cards -->
+    <div class="kpi-grid">
+        <div class="card">
+            <div class="card-title">Distance</div>
+            <div class="card-value">@_totalDistDisplay</div>
+            <div class="card-sub">@(_unit == "mi" ? "miles" : "km")</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Sessions</div>
+            <div class="card-value">@_sessions.Count</div>
+            <div class="card-sub">workouts</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Total Time</div>
+            <div class="card-value">@_totalTimeDisplay</div>
+            <div class="card-sub">hrs : min</div>
+        </div>
+        <div class="card">
+            <div class="card-title">Avg Pace</div>
+            <div class="card-value">@_avgPaceDisplay</div>
+            <div class="card-sub">/ @(_unit == "mi" ? "mi" : "km")</div>
+        </div>
+    </div>
+
+    <!-- Weekly distance chart -->
+    @if (_weekBars.Count > 0)
+    {
+        <div class="chart-box">
+            <div class="chart-title">Weekly Distance (@(_unit == "mi" ? "mi" : "km"))</div>
+            <div class="chart-bar-row">
+                @{ double maxVal = _weekBars.Max(b => b.Value); maxVal = maxVal == 0 ? 1 : maxVal; }
+                @foreach (var bar in _weekBars)
+                {
+                    <div class="chart-bar" style="height:@((bar.Value/maxVal*100).ToString("F0"))%"
+                         title="@bar.Label: @bar.Value.ToString("F1")"></div>
+                }
+            </div>
+            <div class="chart-label-row">
+                @foreach (var bar in _weekBars)
+                {
+                    <div class="chart-label">@bar.Label</div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (!_sessions.Any())
+    {
+        <div class="text-muted mt-2">No sessions in this period. Log your first workout!</div>
+    }
+}
+
+@code {
+    record FilterOption(string Key, string Label);
+    record BarData(string Label, double Value);
+
+    private readonly List<FilterOption> _filters = new()
+    {
+        new("7d",  "Last 7 days"),
+        new("30d", "Last 30 days"),
+        new("ytd", "Year to date"),
+        new("all", "All time"),
+    };
+
+    private string _activeFilter = "30d";
+    private List<WorkoutSession> _sessions = new();
+    private List<BarData> _weekBars = new();
+    private bool _loading = true;
+    private string? _error;
+    private string _unit = "km";
+
+    private string _totalDistDisplay = "--";
+    private string _totalTimeDisplay = "--";
+    private string _avgPaceDisplay   = "--:--";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await Api.GetSettingsAsync();
+            _unit = settings?.DistanceUnit ?? "km";
+        }
+        catch { }
+
+        await LoadAsync();
+    }
+
+    private async Task SetFilter(string key)
+    {
+        _activeFilter = key;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error   = null;
+        StateHasChanged();
+        try
+        {
+            var (start, end) = GetRange();
+            _sessions = start == null
+                ? (await Api.GetWorkoutsAsync() ?? new())
+                : (await Api.GetWorkoutsByRangeAsync(start, end!) ?? new());
+
+            ComputeKpis();
+            ComputeWeekBars();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load data: {ex.Message}";
+        }
+        finally { _loading = false; }
+    }
+
+    private (string? start, string? end) GetRange()
+    {
+        var now = DateTime.UtcNow;
+        return _activeFilter switch
+        {
+            "7d"  => (now.AddDays(-7).ToString("o"),  now.ToString("o")),
+            "30d" => (now.AddDays(-30).ToString("o"), now.ToString("o")),
+            "ytd" => (new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToString("o"), now.ToString("o")),
+            _     => (null, null)
+        };
+    }
+
+    private void ComputeKpis()
+    {
+        if (!_sessions.Any())
+        {
+            _totalDistDisplay = "0";
+            _totalTimeDisplay = "0:00";
+            _avgPaceDisplay   = "--:--";
+            return;
+        }
+
+        double totalKm  = _sessions.Sum(s => s.DistanceKm);
+        double totalDist = _unit == "mi" ? UnitConverter.KmToMiles(totalKm) : totalKm;
+        _totalDistDisplay = totalDist.ToString("F1");
+
+        int totalSec = _sessions.Sum(s => s.DurationSeconds);
+        _totalTimeDisplay = $"{totalSec / 3600}:{(totalSec % 3600 / 60):D2}";
+
+        double avgDist = totalKm / _sessions.Count;
+        double avgDur  = _sessions.Average(s => s.DurationSeconds);
+        _avgPaceDisplay  = UnitConverter.CalculatePaceString(avgDist, avgDur, _unit);
+    }
+
+    private void ComputeWeekBars()
+    {
+        _weekBars.Clear();
+        var groups = _sessions
+            .GroupBy(s => s.SessionDate.ToUniversalTime().DayOfWeek)
+            .ToDictionary(g => g.Key, g => g.Sum(s => _unit == "mi"
+                ? UnitConverter.KmToMiles(s.DistanceKm) : s.DistanceKm));
+
+        var days = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday,
+                           DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday };
+        var labels = new[] { "M", "T", "W", "T", "F", "S", "S" };
+
+        for (int i = 0; i < days.Length; i++)
+            _weekBars.Add(new(labels[i], groups.TryGetValue(days[i], out double v) ? v : 0));
+    }
+}

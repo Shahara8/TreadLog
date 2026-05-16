@@ -17,9 +17,3 @@ public interface IDataPortabilityService
     Task<ImportResult> ImportFromFileAsync(string filePath);
 }
 
-/// <summary>Summary returned to the UI after an import operation.</summary>
-public sealed record ImportResult(
-    int TotalRows,
-    int InsertedRows,
-    int SkippedRows,
-    IReadOnlyList<string> Errors);

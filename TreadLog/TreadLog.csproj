@@ -16,4 +16,8 @@
     <PackageReference Include="OxyPlot.Wpf" Version="2.1.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TreadLog.Shared\TreadLog.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

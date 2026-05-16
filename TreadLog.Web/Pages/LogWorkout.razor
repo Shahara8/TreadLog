@@ -1,0 +1,256 @@
+@page "/log"
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="page-title">@(_editId.HasValue ? "Edit Workout" : "Log Workout")</div>
+
+@if (_saveSuccess)
+{
+    <div class="alert alert-success">Workout saved!</div>
+}
+@if (_saveError != null)
+{
+    <div class="alert alert-danger">@_saveError</div>
+}
+@if (_consistencyWarning != null)
+{
+    <div class="alert alert-warning">@_consistencyWarning</div>
+}
+
+<div class="form-group">
+    <label class="form-label">Date</label>
+    <input type="date" class="form-control" @bind="_date" />
+</div>
+
+<div class="form-group">
+    <label class="form-label">Unit</label>
+    <div class="radio-group">
+        <label class="radio-label">
+            <input type="radio" name="unit" value="km" checked="@(_unit=="km")" @onchange='() => SetUnit("km")' /> km
+        </label>
+        <label class="radio-label">
+            <input type="radio" name="unit" value="mi" checked="@(_unit=="mi")" @onchange='() => SetUnit("mi")' /> mi
+        </label>
+    </div>
+</div>
+
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Distance (@_unit)</label>
+        <input type="number" class="form-control" placeholder="0.0" step="0.01" min="0"
+               @bind="_distDisplay" @oninput="OnDistInput" />
+    </div>
+    <div class="form-group">
+        <label class="form-label">Speed (@_unit/h)</label>
+        <input type="number" class="form-control" placeholder="0.0" step="0.1" min="0"
+               @bind="_speedDisplay" @oninput="OnSpeedInput" />
+    </div>
+</div>
+
+<div class="form-group">
+    <label class="form-label">Duration</label>
+    <div class="form-row">
+        <div class="form-group">
+            <input type="number" class="form-control" placeholder="h" min="0" @bind="_hours" @oninput="OnDurInput" />
+        </div>
+        <div class="form-group">
+            <input type="number" class="form-control" placeholder="min" min="0" max="59" @bind="_minutes" @oninput="OnDurInput" />
+        </div>
+        <div class="form-group">
+            <input type="number" class="form-control" placeholder="sec" min="0" max="59" @bind="_seconds" @oninput="OnDurInput" />
+        </div>
+    </div>
+</div>
+
+<div class="gap-row mb-1">
+    <button class="btn btn-ghost btn-sm" @onclick="CalcDistance">Calc Distance</button>
+    <button class="btn btn-ghost btn-sm" @onclick="CalcSpeed">Calc Speed</button>
+    <button class="btn btn-ghost btn-sm" @onclick="CalcDuration">Calc Duration</button>
+</div>
+
+<div class="form-group">
+    <label class="form-label">Incline (%)</label>
+    <input type="number" class="form-control" placeholder="0.0" step="0.5" min="0" max="15" @bind="_incline" />
+</div>
+
+<div class="form-row">
+    <div class="form-group">
+        <label class="form-label">Calories (opt)</label>
+        <input type="number" class="form-control" placeholder="—" min="0" @bind="_calories" />
+    </div>
+    <div class="form-group">
+        <label class="form-label">Heart rate (opt)</label>
+        <input type="number" class="form-control" placeholder="—" min="40" max="220" @bind="_heartRate" />
+    </div>
+</div>
+
+<div class="gap-row mt-2">
+    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+        @if (_saving) { <span class="spinner"></span> } else { <span>Save</span> }
+    </button>
+    <button class="btn btn-ghost" @onclick="Clear">Clear</button>
+</div>
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public int? Id { get; set; }
+
+    private int?   _editId;
+    private string _unit     = "km";
+    private DateTime _date    = DateTime.Today;
+
+    private double? _distDisplay;
+    private double? _speedDisplay;
+    private int     _hours, _minutes, _seconds;
+    private double  _incline;
+    private int?    _calories;
+    private int?    _heartRate;
+
+    private bool   _saving;
+    private bool   _saveSuccess;
+    private string? _saveError;
+    private string? _consistencyWarning;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _unit = (await Api.GetSettingsAsync())?.DistanceUnit ?? "km"; } catch { }
+
+        if (Id.HasValue)
+        {
+            _editId = Id;
+            var s = await Api.GetWorkoutAsync(Id.Value);
+            if (s != null) LoadFromSession(s);
+        }
+    }
+
+    private void LoadFromSession(WorkoutSession s)
+    {
+        _date        = s.SessionDate.ToLocalTime().Date;
+        _distDisplay = _unit == "mi" ? Math.Round(UnitConverter.KmToMiles(s.DistanceKm), 2) : Math.Round(s.DistanceKm, 2);
+        _speedDisplay= _unit == "mi" ? Math.Round(UnitConverter.KmhToMph(s.AvgSpeedKmh), 1) : Math.Round(s.AvgSpeedKmh, 1);
+        _hours       = s.DurationSeconds / 3600;
+        _minutes     = s.DurationSeconds % 3600 / 60;
+        _seconds     = s.DurationSeconds % 60;
+        _incline     = s.InclinePercent;
+        _calories    = s.CaloriesBurned;
+        _heartRate   = s.AvgHeartRate;
+    }
+
+    private void SetUnit(string u)
+    {
+        if (_unit == u) return;
+        if (_distDisplay.HasValue)
+            _distDisplay  = u == "mi" ? Math.Round(UnitConverter.KmToMiles(_distDisplay.Value), 2)
+                                       : Math.Round(UnitConverter.MilesToKm(_distDisplay.Value), 2);
+        if (_speedDisplay.HasValue)
+            _speedDisplay = u == "mi" ? Math.Round(UnitConverter.KmhToMph(_speedDisplay.Value), 1)
+                                       : Math.Round(UnitConverter.MphToKmh(_speedDisplay.Value), 1);
+        _unit = u;
+        Validate();
+    }
+
+    private void OnDistInput(ChangeEventArgs e)  { if (double.TryParse(e.Value?.ToString(), out var v)) _distDisplay  = v; Validate(); }
+    private void OnSpeedInput(ChangeEventArgs e) { if (double.TryParse(e.Value?.ToString(), out var v)) _speedDisplay = v; Validate(); }
+    private void OnDurInput(ChangeEventArgs _)   => Validate();
+
+    private void CalcDistance()
+    {
+        if (_speedDisplay is > 0 && DurationSeconds > 0)
+        {
+            double kmh = _unit == "mi" ? UnitConverter.MphToKmh(_speedDisplay.Value) : _speedDisplay.Value;
+            double km  = WorkoutValidator.CalculateDistance(kmh, DurationSeconds);
+            _distDisplay = _unit == "mi" ? Math.Round(UnitConverter.KmToMiles(km), 2) : Math.Round(km, 2);
+        }
+        Validate();
+    }
+
+    private void CalcSpeed()
+    {
+        if (_distDisplay is > 0 && DurationSeconds > 0)
+        {
+            double km  = _unit == "mi" ? UnitConverter.MilesToKm(_distDisplay.Value) : _distDisplay.Value;
+            double kmh = WorkoutValidator.CalculateSpeed(km, DurationSeconds);
+            _speedDisplay = _unit == "mi" ? Math.Round(UnitConverter.KmhToMph(kmh), 1) : Math.Round(kmh, 1);
+        }
+        Validate();
+    }
+
+    private void CalcDuration()
+    {
+        if (_distDisplay is > 0 && _speedDisplay is > 0)
+        {
+            double km  = _unit == "mi" ? UnitConverter.MilesToKm(_distDisplay.Value) : _distDisplay.Value;
+            double kmh = _unit == "mi" ? UnitConverter.MphToKmh(_speedDisplay.Value) : _speedDisplay.Value;
+            int dur    = WorkoutValidator.CalculateDuration(km, kmh);
+            _hours   = dur / 3600;
+            _minutes = dur % 3600 / 60;
+            _seconds = dur % 60;
+        }
+        Validate();
+    }
+
+    private void Validate()
+    {
+        if (_distDisplay is > 0 && _speedDisplay is > 0 && DurationSeconds > 0)
+        {
+            double km  = _unit == "mi" ? UnitConverter.MilesToKm(_distDisplay.Value) : _distDisplay.Value;
+            double kmh = _unit == "mi" ? UnitConverter.MphToKmh(_speedDisplay.Value) : _speedDisplay.Value;
+            _consistencyWarning = WorkoutValidator.IsPhysicallyConsistent(km, kmh, DurationSeconds)
+                ? null : "Distance, speed, and duration don't add up. Use a Calc button to fix the third value.";
+        }
+        else { _consistencyWarning = null; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saveError   = null;
+        _saveSuccess = false;
+
+        if (!(_distDisplay > 0) || !(_speedDisplay > 0) || DurationSeconds <= 0)
+        { _saveError = "Distance, speed, and duration are required."; return; }
+
+        double km  = _unit == "mi" ? UnitConverter.MilesToKm(_distDisplay!.Value) : _distDisplay!.Value;
+        double kmh = _unit == "mi" ? UnitConverter.MphToKmh(_speedDisplay!.Value) : _speedDisplay!.Value;
+
+        var session = new WorkoutSession
+        {
+            SessionDate     = _date.ToUniversalTime(),
+            DistanceKm      = km,
+            AvgSpeedKmh     = kmh,
+            DurationSeconds = DurationSeconds,
+            InclinePercent  = _incline,
+            CaloriesBurned  = _calories,
+            AvgHeartRate    = _heartRate
+        };
+
+        _saving = true;
+        try
+        {
+            if (_editId.HasValue)
+                await Api.UpdateWorkoutAsync(_editId.Value, session);
+            else
+                await Api.AddWorkoutAsync(session);
+
+            _saveSuccess = true;
+            if (!_editId.HasValue) Clear();
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private void Clear()
+    {
+        _editId       = null;
+        _date         = DateTime.Today;
+        _distDisplay  = null;
+        _speedDisplay = null;
+        _hours = _minutes = _seconds = 0;
+        _incline      = 0;
+        _calories     = null;
+        _heartRate    = null;
+        _consistencyWarning = null;
+        _saveError    = null;
+        _saveSuccess  = false;
+    }
+
+    private int DurationSeconds => _hours * 3600 + _minutes * 60 + _seconds;
+}

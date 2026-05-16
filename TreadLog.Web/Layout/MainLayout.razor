@@ -1,0 +1,63 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+
+<div class="app-shell">
+    <!-- Mobile top bar -->
+    <nav class="top-nav">
+        <span class="brand">TreadLog</span>
+        <button class="hamburger" @onclick="ToggleDrawer">&#9776;</button>
+    </nav>
+
+    <!-- Mobile nav drawer -->
+    @if (_drawerOpen)
+    {
+        <div class="nav-drawer">
+            <div class="nav-drawer-backdrop" @onclick="CloseDrawer"></div>
+            <div class="nav-drawer-panel">
+                <div class="nav-drawer-title">TreadLog</div>
+                <NavLinks OnNavigate="CloseDrawer" CurrentPage="@CurrentPage" />
+            </div>
+        </div>
+    }
+
+    <!-- Desktop sidebar -->
+    <aside class="desktop-sidebar">
+        <div class="brand">TreadLog</div>
+        <NavLinks CurrentPage="@CurrentPage" />
+    </aside>
+
+    <!-- Page content -->
+    <main class="page-content">
+        @Body
+    </main>
+
+    <!-- Mobile bottom tab bar -->
+    <nav class="bottom-tabs">
+        <button class="tab-item @(CurrentPage=="/" ? "active" : "")" @onclick='() => GoTo("/")'>
+            <span class="tab-icon">&#x1F4CA;</span>Dashboard
+        </button>
+        <button class="tab-item @(CurrentPage=="/log" ? "active" : "")" @onclick='() => GoTo("/log")'>
+            <span class="tab-icon">&#x2795;</span>Log
+        </button>
+        <button class="tab-item @(CurrentPage=="/history" ? "active" : "")" @onclick='() => GoTo("/history")'>
+            <span class="tab-icon">&#x1F4CB;</span>History
+        </button>
+        <button class="tab-item @(CurrentPage=="/settings" ? "active" : "")" @onclick='() => GoTo("/settings")'>
+            <span class="tab-icon">&#x2699;&#xFE0F;</span>Settings
+        </button>
+    </nav>
+</div>
+
+@code {
+    private bool _drawerOpen;
+
+    private string CurrentPage =>
+        "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0].TrimStart('/');
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void CloseDrawer()  => _drawerOpen = false;
+    private void GoTo(string path) => Nav.NavigateTo(path);
+
+    protected override void OnInitialized()
+        => Nav.LocationChanged += (_, _) => StateHasChanged();
+}

@@ -1,0 +1,70 @@
+@page "/settings"
+@inject ApiClient Api
+
+<div class="page-title">Settings</div>
+
+@if (_loading)
+{
+    <div class="text-muted">Loading...</div>
+}
+else
+{
+    <div class="card">
+        <div class="card-title">Distance Unit</div>
+        <div class="radio-group mt-1">
+            <label class="radio-label">
+                <input type="radio" name="unit" value="km" checked="@(_unit=="km")" @onchange='() => _unit = "km"' /> Kilometres (km)
+            </label>
+            <label class="radio-label">
+                <input type="radio" name="unit" value="mi" checked="@(_unit=="mi")" @onchange='() => _unit = "mi"' /> Miles (mi)
+            </label>
+        </div>
+
+        @if (_saved)
+        {
+            <div class="alert alert-success mt-2">Settings saved.</div>
+        }
+        @if (_error != null)
+        {
+            <div class="alert alert-danger mt-2">@_error</div>
+        }
+
+        <button class="btn btn-primary mt-2" @onclick="SaveAsync" disabled="@(_saving || _unit == _loadedUnit)">
+            @if (_saving) { <span class="spinner"></span> } else { <span>Save</span> }
+        </button>
+    </div>
+}
+
+@code {
+    private string _unit       = "km";
+    private string _loadedUnit = "km";
+    private bool   _loading    = true;
+    private bool   _saving;
+    private bool   _saved;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var s = await Api.GetSettingsAsync();
+            _unit       = s?.DistanceUnit ?? "km";
+            _loadedUnit = _unit;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _saved = false; _error = null;
+        try
+        {
+            await Api.SaveSettingsAsync(new UserSettings { DistanceUnit = _unit });
+            _loadedUnit = _unit;
+            _saved = true;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+}

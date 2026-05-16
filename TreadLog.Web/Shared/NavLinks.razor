@@ -1,0 +1,29 @@
+@inject NavigationManager Nav
+
+@{
+    string Cls(string path) => "nav-item" + (CurrentPage == path ? " active" : "");
+}
+
+<button class="@Cls("/")" @onclick='() => Navigate("/")'>
+    <span class="nav-icon">&#x1F4CA;</span> Dashboard
+</button>
+<button class="@Cls("/log")" @onclick='() => Navigate("/log")'>
+    <span class="nav-icon">&#x2795;</span> Log Workout
+</button>
+<button class="@Cls("/history")" @onclick='() => Navigate("/history")'>
+    <span class="nav-icon">&#x1F4CB;</span> History
+</button>
+<button class="@Cls("/settings")" @onclick='() => Navigate("/settings")'>
+    <span class="nav-icon">&#x2699;&#xFE0F;</span> Settings
+</button>
+
+@code {
+    [Parameter] public string CurrentPage { get; set; } = "/";
+    [Parameter] public EventCallback OnNavigate { get; set; }
+
+    private async Task Navigate(string path)
+    {
+        Nav.NavigateTo(path);
+        await OnNavigate.InvokeAsync();
+    }
+}

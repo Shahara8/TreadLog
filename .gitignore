@@ -1,0 +1,43 @@
+## .NET / C# gitignore
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+!**/packages/build/
+*.lock.json
+!packages.lock.json
+
+# Visual Studio artifacts
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider artifacts
+.idea/
+
+# Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Publish output
+[Pp]ublish/
+PublishProfiles/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini

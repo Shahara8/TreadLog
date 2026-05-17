@@ -5,16 +5,12 @@ using TreadLog.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Database path ─────────────────────────────────────────────────────────────
-var dbPath = builder.Configuration["DatabasePath"]
-    ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "TreadLog", "treadlog.db");
-
-Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+// ── Database connection ───────────────────────────────────────────────────────
+var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
 
 // ── DI container ──────────────────────────────────────────────────────────────
-builder.Services.AddSingleton<IDatabaseService>(_ => new DatabaseService(dbPath));
+builder.Services.AddSingleton<IDatabaseService>(_ => new DatabaseService(connStr));
 builder.Services.AddSingleton<IWorkoutRepository, WorkoutRepository>();
 builder.Services.AddSingleton<IUserSettingsRepository, UserSettingsRepository>();
 builder.Services.AddSingleton<DataPortabilityService>();

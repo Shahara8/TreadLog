@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using TreadLog.Api.Services.Interfaces;
 
 namespace TreadLog.Api.Services;
@@ -7,70 +7,64 @@ public class DatabaseService : IDatabaseService
 {
     private readonly string _connectionString;
 
-    public DatabaseService(string dbPath)
+    public DatabaseService(string connectionString)
     {
-        _connectionString = new SqliteConnectionStringBuilder
-        {
-            DataSource = dbPath,
-            Mode       = SqliteOpenMode.ReadWriteCreate
-        }.ToString();
+        _connectionString = connectionString;
     }
 
-    public SqliteConnection CreateConnection() => new(_connectionString);
+    public NpgsqlConnection CreateConnection() => new(_connectionString);
 
     public async Task InitializeAsync()
     {
-        using var conn = CreateConnection();
+        await using var conn = CreateConnection();
         await conn.OpenAsync();
-        using var tx = conn.BeginTransaction();
+        await using var tx = await conn.BeginTransactionAsync();
         try
         {
             await ExecAsync(conn, tx, @"
-                CREATE TABLE IF NOT EXISTS WorkoutSessions (
-                    Id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    SessionDate     TEXT    NOT NULL,
-                    DurationSeconds INTEGER NOT NULL,
-                    DistanceKm      REAL    NOT NULL,
-                    AvgSpeedKmh     REAL    NOT NULL,
-                    InclinePercent  REAL    NOT NULL DEFAULT 0.0,
-                    CaloriesBurned  INTEGER,
-                    AvgHeartRate    INTEGER,
-                    CreatedAt       TEXT    NOT NULL DEFAULT (datetime('now')),
-                    UpdatedAt       TEXT    NOT NULL DEFAULT (datetime('now'))
+                CREATE TABLE IF NOT EXISTS workoutsessions (
+                    id              SERIAL PRIMARY KEY,
+                    sessiondate     TEXT             NOT NULL,
+                    durationseconds INTEGER          NOT NULL,
+                    distancekm      DOUBLE PRECISION NOT NULL,
+                    avgspeedkmh     DOUBLE PRECISION NOT NULL,
+                    inclinepercent  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                    caloriesburned  INTEGER,
+                    avgheartrate    INTEGER,
+                    createdat       TEXT             NOT NULL DEFAULT (NOW()::TEXT),
+                    updatedat       TEXT             NOT NULL DEFAULT (NOW()::TEXT)
                 );");
 
             await ExecAsync(conn, tx, @"
-                CREATE UNIQUE INDEX IF NOT EXISTS UX_WorkoutSessions_SessionDate
-                    ON WorkoutSessions (SessionDate);");
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_workoutsessions_sessiondate
+                    ON workoutsessions (sessiondate);");
 
             await ExecAsync(conn, tx, @"
-                CREATE INDEX IF NOT EXISTS IX_WorkoutSessions_Date
-                    ON WorkoutSessions (SessionDate, DistanceKm, DurationSeconds, AvgSpeedKmh, InclinePercent);");
+                CREATE INDEX IF NOT EXISTS ix_workoutsessions_date
+                    ON workoutsessions (sessiondate, distancekm, durationseconds, avgspeedkmh, inclinepercent);");
 
             await ExecAsync(conn, tx, @"
-                CREATE TABLE IF NOT EXISTS UserSettings (
-                    Id           INTEGER PRIMARY KEY CHECK (Id = 1),
-                    DistanceUnit TEXT    NOT NULL DEFAULT 'km',
-                    UpdatedAt    TEXT    NOT NULL DEFAULT (datetime('now'))
+                CREATE TABLE IF NOT EXISTS usersettings (
+                    id           INTEGER PRIMARY KEY CHECK (id = 1),
+                    distanceunit TEXT    NOT NULL DEFAULT 'km',
+                    updatedat    TEXT    NOT NULL DEFAULT (NOW()::TEXT)
                 );");
 
             await ExecAsync(conn, tx,
-                "INSERT OR IGNORE INTO UserSettings (Id, DistanceUnit) VALUES (1, 'km');");
+                "INSERT INTO usersettings (id, distanceunit) VALUES (1, 'km') ON CONFLICT (id) DO NOTHING;");
 
-            tx.Commit();
+            await tx.CommitAsync();
         }
         catch
         {
-            tx.Rollback();
+            await tx.RollbackAsync();
             throw;
         }
     }
 
-    private static async Task ExecAsync(SqliteConnection conn, SqliteTransaction tx, string sql)
+    private static async Task ExecAsync(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
     {
-        await using var cmd = conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = sql;
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
         await cmd.ExecuteNonQueryAsync();
     }
 }

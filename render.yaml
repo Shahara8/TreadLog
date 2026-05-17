@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: treadlog-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: AllowedOrigins__0
+        value: https://shahara8.github.io

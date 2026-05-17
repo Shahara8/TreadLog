@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using TreadLog.Api.Services.Interfaces;
 using TreadLog.Models;
 using TreadLog.Services.Interfaces;
@@ -13,18 +13,17 @@ public class WorkoutRepository : IWorkoutRepository
 
     public async Task<int> AddAsync(WorkoutSession session)
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-            INSERT INTO WorkoutSessions
-                (SessionDate, DurationSeconds, DistanceKm, AvgSpeedKmh, InclinePercent,
-                 CaloriesBurned, AvgHeartRate, CreatedAt, UpdatedAt)
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO workoutsessions
+                (sessiondate, durationseconds, distancekm, avgspeedkmh, inclinepercent,
+                 caloriesburned, avgheartrate, createdat, updatedat)
             VALUES
                 (@SessionDate, @DurationSeconds, @DistanceKm, @AvgSpeedKmh, @InclinePercent,
-                 @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt);
-            SELECT last_insert_rowid();";
+                 @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt)
+            RETURNING id;", conn);
 
         BindSessionParams(cmd, session);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
@@ -32,21 +31,20 @@ public class WorkoutRepository : IWorkoutRepository
 
     public async Task UpdateAsync(WorkoutSession session)
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
-            UPDATE WorkoutSessions SET
-                SessionDate     = @SessionDate,
-                DurationSeconds = @DurationSeconds,
-                DistanceKm      = @DistanceKm,
-                AvgSpeedKmh     = @AvgSpeedKmh,
-                InclinePercent  = @InclinePercent,
-                CaloriesBurned  = @CaloriesBurned,
-                AvgHeartRate    = @AvgHeartRate,
-                UpdatedAt       = @UpdatedAt
-            WHERE Id = @Id;";
+        await using var cmd = new NpgsqlCommand(@"
+            UPDATE workoutsessions SET
+                sessiondate     = @SessionDate,
+                durationseconds = @DurationSeconds,
+                distancekm      = @DistanceKm,
+                avgspeedkmh     = @AvgSpeedKmh,
+                inclinepercent  = @InclinePercent,
+                caloriesburned  = @CaloriesBurned,
+                avgheartrate    = @AvgHeartRate,
+                updatedat       = @UpdatedAt
+            WHERE id = @Id;", conn);
 
         BindSessionParams(cmd, session);
         cmd.Parameters.AddWithValue("@Id", session.Id);
@@ -55,52 +53,50 @@ public class WorkoutRepository : IWorkoutRepository
 
     public async Task DeleteAsync(int id)
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM WorkoutSessions WHERE Id = @Id;";
+        await using var cmd = new NpgsqlCommand(
+            "DELETE FROM workoutsessions WHERE id = @Id;", conn);
         cmd.Parameters.AddWithValue("@Id", id);
         await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<int> BulkInsertIgnoreAsync(IEnumerable<WorkoutSession> sessions)
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        using var tx = conn.BeginTransaction();
+        await using var tx = await conn.BeginTransactionAsync();
         int inserted = 0;
         try
         {
             foreach (var session in sessions)
             {
-                await using var cmd = conn.CreateCommand();
-                cmd.Transaction = tx;
-                cmd.CommandText = @"
-                    INSERT OR IGNORE INTO WorkoutSessions
-                        (SessionDate, DurationSeconds, DistanceKm, AvgSpeedKmh, InclinePercent,
-                         CaloriesBurned, AvgHeartRate, CreatedAt, UpdatedAt)
+                await using var cmd = new NpgsqlCommand(@"
+                    INSERT INTO workoutsessions
+                        (sessiondate, durationseconds, distancekm, avgspeedkmh, inclinepercent,
+                         caloriesburned, avgheartrate, createdat, updatedat)
                     VALUES
                         (@SessionDate, @DurationSeconds, @DistanceKm, @AvgSpeedKmh, @InclinePercent,
-                         @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt);";
+                         @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt)
+                    ON CONFLICT (sessiondate) DO NOTHING;", conn, tx);
                 BindSessionParams(cmd, session);
                 inserted += await cmd.ExecuteNonQueryAsync();
             }
-            tx.Commit();
+            await tx.CommitAsync();
         }
-        catch { tx.Rollback(); throw; }
+        catch { await tx.RollbackAsync(); throw; }
 
         return inserted;
     }
 
     public async Task<WorkoutSession?> GetByIdAsync(int id)
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"{SelectSql} WHERE Id = @Id;";
+        await using var cmd = new NpgsqlCommand($"{SelectSql} WHERE id = @Id;", conn);
         cmd.Parameters.AddWithValue("@Id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -109,32 +105,31 @@ public class WorkoutRepository : IWorkoutRepository
 
     public async Task<IEnumerable<WorkoutSession>> GetAllAsync()
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"{SelectSql} ORDER BY SessionDate DESC;";
+        await using var cmd = new NpgsqlCommand($"{SelectSql} ORDER BY sessiondate DESC;", conn);
         return await ReadListAsync(cmd);
     }
 
     public async Task<IEnumerable<WorkoutSession>> GetByDateRangeAsync(string startDate, string endDate)
     {
-        using var conn = _db.CreateConnection();
+        await using var conn = _db.CreateConnection();
         await conn.OpenAsync();
 
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"{SelectSql} WHERE SessionDate >= @Start AND SessionDate <= @End ORDER BY SessionDate ASC;";
+        await using var cmd = new NpgsqlCommand(
+            $"{SelectSql} WHERE sessiondate >= @Start AND sessiondate <= @End ORDER BY sessiondate ASC;", conn);
         cmd.Parameters.AddWithValue("@Start", startDate);
         cmd.Parameters.AddWithValue("@End",   endDate);
         return await ReadListAsync(cmd);
     }
 
     private const string SelectSql = @"
-        SELECT Id, SessionDate, DurationSeconds, DistanceKm, AvgSpeedKmh,
-               InclinePercent, CaloriesBurned, AvgHeartRate, CreatedAt, UpdatedAt
-        FROM WorkoutSessions";
+        SELECT id, sessiondate, durationseconds, distancekm, avgspeedkmh,
+               inclinepercent, caloriesburned, avgheartrate, createdat, updatedat
+        FROM workoutsessions";
 
-    private static void BindSessionParams(SqliteCommand cmd, WorkoutSession s)
+    private static void BindSessionParams(NpgsqlCommand cmd, WorkoutSession s)
     {
         cmd.Parameters.AddWithValue("@SessionDate",     s.SessionDate.ToUniversalTime().ToString("o"));
         cmd.Parameters.AddWithValue("@DurationSeconds", s.DurationSeconds);
@@ -148,7 +143,7 @@ public class WorkoutRepository : IWorkoutRepository
         cmd.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow.ToString("o"));
     }
 
-    private static WorkoutSession MapRow(SqliteDataReader r) => new()
+    private static WorkoutSession MapRow(NpgsqlDataReader r) => new()
     {
         Id              = r.GetInt32(0),
         SessionDate     = DateTime.Parse(r.GetString(1),
@@ -163,7 +158,7 @@ public class WorkoutRepository : IWorkoutRepository
         UpdatedAt       = r.GetString(9)
     };
 
-    private static async Task<List<WorkoutSession>> ReadListAsync(SqliteCommand cmd)
+    private static async Task<List<WorkoutSession>> ReadListAsync(NpgsqlCommand cmd)
     {
         var list = new List<WorkoutSession>();
         await using var reader = await cmd.ExecuteReaderAsync();

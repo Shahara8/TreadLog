@@ -1,9 +1,9 @@
-using Microsoft.Data.Sqlite;
+using Npgsql;
 
 namespace TreadLog.Api.Services.Interfaces;
 
 public interface IDatabaseService
 {
-    SqliteConnection CreateConnection();
+    NpgsqlConnection CreateConnection();
     Task InitializeAsync();
 }

@@ -26,7 +26,7 @@
 
     private async Task Navigate(string path)
     {
-        Nav.NavigateTo(path);
+        Nav.NavigateTo(Nav.BaseUri + path.TrimStart('/'));
         await OnNavigate.InvokeAsync();
     }
 }

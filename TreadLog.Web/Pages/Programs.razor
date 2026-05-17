@@ -64,8 +64,8 @@ else
         finally { _loading = false; }
     }
 
-    private void NewProgram() => Nav.NavigateTo("/programs/edit");
-    private void Edit(int id) => Nav.NavigateTo($"/programs/edit?id={id}");
+    private void NewProgram() => Nav.NavigateTo(Nav.BaseUri + "programs/edit");
+    private void Edit(int id) => Nav.NavigateTo(Nav.BaseUri + $"programs/edit?id={id}");
 
     private async Task Delete(int id)
     {

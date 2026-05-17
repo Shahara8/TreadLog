@@ -59,7 +59,7 @@
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void CloseDrawer()  => _drawerOpen = false;
-    private void GoTo(string path) => Nav.NavigateTo(path);
+    private void GoTo(string path) => Nav.NavigateTo(Nav.BaseUri + path.TrimStart('/'));
 
     protected override void OnInitialized()
         => Nav.LocationChanged += (_, _) => StateHasChanged();

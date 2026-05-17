@@ -135,7 +135,7 @@ else
 
     private void ClearFilters() { _search = ""; _dateFrom = null; _dateTo = null; _ = LoadAsync(); }
 
-    private void Edit(int id) => Nav.NavigateTo($"/log?id={id}");
+    private void Edit(int id) => Nav.NavigateTo(Nav.BaseUri + $"log?id={id}");
 
     private async Task Delete(int id)
     {

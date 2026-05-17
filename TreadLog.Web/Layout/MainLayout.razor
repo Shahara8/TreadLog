@@ -42,6 +42,9 @@
         <button class="tab-item @(CurrentPage=="/history" ? "active" : "")" @onclick='() => GoTo("/history")'>
             <span class="tab-icon">&#x1F4CB;</span>History
         </button>
+        <button class="tab-item @(CurrentPage=="/programs" ? "active" : "")" @onclick='() => GoTo("/programs")'>
+            <span class="tab-icon">&#x1F3CB;&#xFE0F;</span>Programs
+        </button>
         <button class="tab-item @(CurrentPage=="/settings" ? "active" : "")" @onclick='() => GoTo("/settings")'>
             <span class="tab-icon">&#x2699;&#xFE0F;</span>Settings
         </button>

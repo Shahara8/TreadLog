@@ -195,6 +195,52 @@ a { color: var(--accent); text-decoration: none; }
 .gap-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 
+/* ── Mode toggle (Free / Program) ────────────────────────────────────────── */
+.mode-toggle { display: flex; background: var(--sidebar); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; gap: 3px; }
+.mode-btn {
+    flex: 1; padding: 0.4rem 0.75rem; border-radius: calc(var(--radius) - 2px);
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    background: transparent; border: none; color: var(--muted); transition: all 0.15s;
+}
+.mode-btn.active { background: var(--accent); color: #fff; }
+
+/* ── Checkbox label ───────────────────────────────────────────────────────── */
+.check-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; }
+.check-label input[type=checkbox] { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; }
+
+/* ── Steps preview (in Log Workout) ──────────────────────────────────────── */
+.steps-preview { display: flex; flex-direction: column; gap: 2px; }
+.step-preview-row {
+    display: grid; grid-template-columns: 1.5rem 1fr 1fr;
+    font-size: 0.8rem; color: var(--muted); padding: 2px 0;
+}
+.step-preview-row .step-num { color: var(--accent); font-weight: 700; }
+.step-totals { font-size: 0.8rem; color: var(--text); font-weight: 600; border-top: 1px solid var(--border); padding-top: 0.4rem; margin-top: 0.35rem; }
+
+/* ── Step editor table (in Edit Program) ─────────────────────────────────── */
+.step-table { display: flex; flex-direction: column; gap: 4px; }
+.step-header {
+    display: grid; grid-template-columns: 1.5rem 3.5rem 3.5rem 4rem 3.5rem 1fr;
+    gap: 4px; font-size: 0.7rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; padding: 0 0 4px;
+}
+.step-row {
+    display: grid; grid-template-columns: 1.5rem 3.5rem 3.5rem 4rem 3.5rem 1fr;
+    gap: 4px; align-items: center;
+}
+.step-input { padding: 0.3rem 0.4rem; font-size: 0.85rem; text-align: center; }
+.step-num { font-size: 0.8rem; color: var(--accent); font-weight: 700; text-align: center; }
+.step-dist { font-size: 0.8rem; text-align: center; }
+.step-actions { display: flex; gap: 2px; }
+
+/* ── Program badges in History ───────────────────────────────────────────── */
+.prog-badge {
+    background: rgba(124,58,237,0.2); color: var(--accent);
+    border-radius: 999px; padding: 1px 7px; font-size: 0.7rem; font-weight: 600;
+}
+.badge-ok   { color: var(--success); font-weight: 700; margin-left: 3px; }
+.badge-fail { color: var(--danger);  font-weight: 700; margin-left: 3px; }
+
 /* ── Desktop (768px+) ─────────────────────────────────────────────────────── */
 @media (min-width: 768px) {
     .top-nav { display: none; }

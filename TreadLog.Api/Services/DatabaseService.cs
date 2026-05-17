@@ -79,6 +79,30 @@ public class DatabaseService : IDatabaseService
             await ExecAsync(conn, tx,
                 "INSERT INTO usersettings (id, distanceunit) VALUES (1, 'km') ON CONFLICT (id) DO NOTHING;");
 
+            await ExecAsync(conn, tx, @"
+                CREATE TABLE IF NOT EXISTS workoutprograms (
+                    id          SERIAL PRIMARY KEY,
+                    name        TEXT NOT NULL,
+                    description TEXT,
+                    createdat   TEXT NOT NULL DEFAULT (NOW()::TEXT),
+                    updatedat   TEXT NOT NULL DEFAULT (NOW()::TEXT)
+                );");
+
+            await ExecAsync(conn, tx, @"
+                CREATE TABLE IF NOT EXISTS workoutprogramsteps (
+                    id              SERIAL PRIMARY KEY,
+                    programid       INTEGER NOT NULL REFERENCES workoutprograms(id) ON DELETE CASCADE,
+                    steporder       INTEGER NOT NULL,
+                    durationseconds INTEGER NOT NULL,
+                    speedkmh        DOUBLE PRECISION NOT NULL
+                );");
+
+            // Migrate existing workoutsessions table — safe to run repeatedly
+            await ExecAsync(conn, tx,
+                "ALTER TABLE workoutsessions ADD COLUMN IF NOT EXISTS programid INTEGER REFERENCES workoutprograms(id) ON DELETE SET NULL;");
+            await ExecAsync(conn, tx,
+                "ALTER TABLE workoutsessions ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT true;");
+
             await tx.CommitAsync();
         }
         catch

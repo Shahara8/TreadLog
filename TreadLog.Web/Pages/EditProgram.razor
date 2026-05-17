@@ -1,0 +1,204 @@
+@page "/programs/edit"
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="page-title">@(_editId.HasValue ? "Edit Program" : "New Program")</div>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="form-group">
+    <label class="form-label">Name</label>
+    <input class="form-control" placeholder="e.g. Interval 5K" @bind="_name" />
+</div>
+
+<div class="form-group">
+    <label class="form-label">Description (optional)</label>
+    <input class="form-control" placeholder="Short note..." @bind="_description" />
+</div>
+
+<div class="section-header mt-2 mb-1">
+    <span class="section-title">Steps</span>
+    <div class="gap-row">
+        <div class="radio-group">
+            <label class="radio-label">
+                <input type="radio" name="editUnit" value="km" checked="@(_unit=="km")" @onchange='() => _unit="km"' /> km/h
+            </label>
+            <label class="radio-label">
+                <input type="radio" name="editUnit" value="mi" checked="@(_unit=="mi")" @onchange='() => _unit="mi"' /> mph
+            </label>
+        </div>
+        <button class="btn btn-ghost btn-sm" @onclick="AddStep">+ Step</button>
+    </div>
+</div>
+
+@if (_steps.Any())
+{
+    <div class="step-table">
+        <div class="step-header">
+            <span>#</span><span>Min</span><span>Sec</span>
+            <span>@(_unit == "mi" ? "mph" : "km/h")</span>
+            <span>Dist</span><span></span>
+        </div>
+        @for (int i = 0; i < _steps.Count; i++)
+        {
+            var idx  = i;
+            var step = _steps[idx];
+            var dStr = StepDistStr(step);
+            <div class="step-row">
+                <span class="step-num">@(idx + 1)</span>
+                <input type="number" class="form-control step-input" min="0" max="99"
+                       value="@step.Minutes"
+                       @onchange="e => { _steps[idx].Minutes = int.TryParse(e.Value?.ToString(), out var v) ? Math.Max(0, v) : 0; }" />
+                <input type="number" class="form-control step-input" min="0" max="59"
+                       value="@step.Seconds"
+                       @onchange="e => { _steps[idx].Seconds = int.TryParse(e.Value?.ToString(), out var v) ? Math.Clamp(v, 0, 59) : 0; }" />
+                <input type="number" class="form-control step-input" min="0" max="30" step="0.1"
+                       value="@($"{step.SpeedDisplay:F1}")"
+                       @onchange="e => { _steps[idx].SpeedDisplay = double.TryParse(e.Value?.ToString(), out var v) ? Math.Max(0, v) : 0; }" />
+                <span class="step-dist text-muted">@dStr</span>
+                <div class="step-actions">
+                    <button class="btn btn-ghost btn-sm" disabled="@(idx == 0)"
+                            @onclick="() => MoveUp(idx)">&#x25B2;</button>
+                    <button class="btn btn-ghost btn-sm" disabled="@(idx == _steps.Count - 1)"
+                            @onclick="() => MoveDown(idx)">&#x25BC;</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => RemoveStep(idx)">&#x2715;</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="step-totals mt-1">
+        Total: @FormatDuration(TotalSecs) &nbsp;·&nbsp; @TotalDistStr
+    </div>
+}
+else
+{
+    <div class="text-muted mb-1">No steps yet — click "+ Step" to add one.</div>
+}
+
+<div class="gap-row mt-2">
+    <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+        @if (_saving) { <span class="spinner"></span> } else { <span>Save</span> }
+    </button>
+    <button class="btn btn-ghost" @onclick='() => Nav.NavigateTo("/programs")'>Cancel</button>
+</div>
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public int? Id { get; set; }
+
+    private int?    _editId;
+    private string  _name        = "";
+    private string? _description;
+    private string  _unit        = "km";
+    private List<StepEdit> _steps = new();
+    private bool    _saving;
+    private string? _error;
+
+    private class StepEdit
+    {
+        public int    Minutes      { get; set; }
+        public int    Seconds      { get; set; }
+        public double SpeedDisplay { get; set; }
+
+        public int    DurationSeconds => Minutes * 60 + Seconds;
+        public double SpeedKmh(string unit)
+            => unit == "mi" ? UnitConverter.MphToKmh(SpeedDisplay) : SpeedDisplay;
+    }
+
+    private int TotalSecs => _steps.Sum(s => s.DurationSeconds);
+
+    private string TotalDistStr
+    {
+        get
+        {
+            var km = _steps.Sum(s => s.SpeedKmh(_unit) * s.DurationSeconds / 3600.0);
+            return _unit == "mi" ? $"{UnitConverter.KmToMiles(km):F2} mi" : $"{km:F2} km";
+        }
+    }
+
+    private string StepDistStr(StepEdit step)
+    {
+        var kmh = step.SpeedKmh(_unit);
+        var km  = kmh * step.DurationSeconds / 3600.0;
+        return _unit == "mi" ? $"{UnitConverter.KmToMiles(km):F2}" : $"{km:F2}";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _unit = (await Api.GetSettingsAsync())?.DistanceUnit ?? "km"; } catch { }
+
+        if (Id.HasValue)
+        {
+            _editId = Id;
+            var p = await Api.GetProgramAsync(Id.Value);
+            if (p != null)
+            {
+                _name        = p.Name;
+                _description = p.Description;
+                _steps = p.Steps.OrderBy(s => s.StepOrder).Select(s => new StepEdit
+                {
+                    Minutes      = s.DurationSeconds / 60,
+                    Seconds      = s.DurationSeconds % 60,
+                    SpeedDisplay = _unit == "mi"
+                        ? Math.Round(UnitConverter.KmhToMph(s.SpeedKmh), 1)
+                        : Math.Round(s.SpeedKmh, 1)
+                }).ToList();
+            }
+        }
+    }
+
+    private void AddStep() => _steps.Add(new StepEdit { Minutes = 5, SpeedDisplay = _unit == "mi" ? 5.0 : 8.0 });
+    private void RemoveStep(int idx) => _steps.RemoveAt(idx);
+
+    private void MoveUp(int idx)
+    {
+        if (idx <= 0) return;
+        (_steps[idx], _steps[idx - 1]) = (_steps[idx - 1], _steps[idx]);
+    }
+
+    private void MoveDown(int idx)
+    {
+        if (idx >= _steps.Count - 1) return;
+        (_steps[idx], _steps[idx + 1]) = (_steps[idx + 1], _steps[idx]);
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_name))    { _error = "Name is required."; return; }
+        if (!_steps.Any())                        { _error = "Add at least one step."; return; }
+        if (_steps.Any(s => s.DurationSeconds <= 0)) { _error = "All steps need a duration > 0."; return; }
+        if (_steps.Any(s => s.SpeedDisplay <= 0))    { _error = "All steps need a speed > 0."; return; }
+
+        var program = new WorkoutProgram
+        {
+            Id          = _editId ?? 0,
+            Name        = _name.Trim(),
+            Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+            Steps       = _steps.Select((s, i) => new WorkoutProgramStep
+            {
+                StepOrder       = i + 1,
+                DurationSeconds = s.DurationSeconds,
+                SpeedKmh        = s.SpeedKmh(_unit)
+            }).ToList()
+        };
+
+        _saving = true;
+        try
+        {
+            if (_editId.HasValue)
+                await Api.UpdateProgramAsync(_editId.Value, program);
+            else
+                await Api.AddProgramAsync(program);
+            Nav.NavigateTo("/programs");
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string FormatDuration(int s)
+        => s >= 3600 ? $"{s / 3600}:{s % 3600 / 60:D2}:{s % 60:D2}" : $"{s / 60}:{s % 60:D2}";
+}

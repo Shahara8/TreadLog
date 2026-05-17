@@ -59,6 +59,34 @@ public class ApiClient
         return await response.Content.ReadFromJsonAsync<UserSettings>();
     }
 
+    // ── Programs ──────────────────────────────────────────────────────────────
+
+    public Task<List<WorkoutProgram>?> GetProgramsAsync()
+        => _http.GetFromJsonAsync<List<WorkoutProgram>>("api/programs");
+
+    public Task<WorkoutProgram?> GetProgramAsync(int id)
+        => _http.GetFromJsonAsync<WorkoutProgram>($"api/programs/{id}");
+
+    public async Task<WorkoutProgram?> AddProgramAsync(WorkoutProgram p)
+    {
+        var r = await _http.PostAsJsonAsync("api/programs", p);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<WorkoutProgram>();
+    }
+
+    public async Task<WorkoutProgram?> UpdateProgramAsync(int id, WorkoutProgram p)
+    {
+        var r = await _http.PutAsJsonAsync($"api/programs/{id}", p);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<WorkoutProgram>();
+    }
+
+    public async Task DeleteProgramAsync(int id)
+    {
+        var r = await _http.DeleteAsync($"api/programs/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
     // ── Export ────────────────────────────────────────────────────────────────
 
     public async Task<byte[]> ExportCsvAsync()

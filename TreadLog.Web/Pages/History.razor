@@ -51,6 +51,17 @@ else
                     <span class="session-dist">@FormatDist(s.DistanceKm)</span>
                 </div>
                 <div class="session-meta">
+                    @if (s.ProgramId.HasValue)
+                    {
+                        var pName = _programNames.GetValueOrDefault(s.ProgramId.Value, "Program");
+                        <span class="session-meta-item">
+                            <span class="prog-badge">@pName</span>
+                            @if (s.Completed)
+                            { <span class="badge-ok">&#x2713;</span> }
+                            else
+                            { <span class="badge-fail">&#x2715;</span> }
+                        </span>
+                    }
                     <span class="session-meta-item">&#x23F1; @FormatDuration(s.DurationSeconds)</span>
                     <span class="session-meta-item">&#x26A1; @FormatSpeed(s.AvgSpeedKmh)</span>
                     <span class="session-meta-item">&#x1F3C3; @UnitConverter.CalculatePaceString(s.DistanceKm, s.DurationSeconds, _unit)/@(_unit)</span>
@@ -72,6 +83,7 @@ else
 @code {
     private List<WorkoutSession> _all      = new();
     private List<WorkoutSession> _filtered = new();
+    private Dictionary<int, string> _programNames = new();
     private string    _search   = "";
     private DateTime? _dateFrom;
     private DateTime? _dateTo;
@@ -82,6 +94,12 @@ else
     protected override async Task OnInitializedAsync()
     {
         try { _unit = (await Api.GetSettingsAsync())?.DistanceUnit ?? "km"; } catch { }
+        try
+        {
+            var progs = await Api.GetProgramsAsync();
+            _programNames = progs?.ToDictionary(p => p.Id, p => p.Name) ?? new();
+        }
+        catch { }
         await LoadAsync();
     }
 

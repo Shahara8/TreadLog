@@ -13,6 +13,7 @@ var connStr = builder.Configuration.GetConnectionString("DefaultConnection")
 builder.Services.AddSingleton<IDatabaseService>(_ => new DatabaseService(connStr));
 builder.Services.AddSingleton<IWorkoutRepository, WorkoutRepository>();
 builder.Services.AddSingleton<IUserSettingsRepository, UserSettingsRepository>();
+builder.Services.AddSingleton<IWorkoutProgramRepository, WorkoutProgramRepository>();
 builder.Services.AddSingleton<DataPortabilityService>();
 
 builder.Services.AddEndpointsApiExplorer();
@@ -110,5 +111,35 @@ app.MapPost("/api/import", async (IFormFile file, DataPortabilityService svc) =>
     var result = await svc.ImportFromStreamAsync(stream, ext);
     return Results.Ok(result);
 }).DisableAntiforgery();
+
+// ── Programs endpoints ────────────────────────────────────────────────────────
+var programs = app.MapGroup("/api/programs");
+
+programs.MapGet("/", async (IWorkoutProgramRepository repo) =>
+    Results.Ok(await repo.GetAllAsync()));
+
+programs.MapGet("/{id:int}", async (int id, IWorkoutProgramRepository repo) =>
+    await repo.GetByIdAsync(id) is { } p ? Results.Ok(p) : Results.NotFound());
+
+programs.MapPost("/", async (WorkoutProgram program, IWorkoutProgramRepository repo) =>
+{
+    var id      = await repo.AddAsync(program);
+    var created = await repo.GetByIdAsync(id);
+    return Results.Created($"/api/programs/{id}", created);
+});
+
+programs.MapPut("/{id:int}", async (int id, WorkoutProgram program, IWorkoutProgramRepository repo) =>
+{
+    if (await repo.GetByIdAsync(id) is null) return Results.NotFound();
+    program.Id = id;
+    await repo.UpdateAsync(program);
+    return Results.Ok(await repo.GetByIdAsync(id));
+});
+
+programs.MapDelete("/{id:int}", async (int id, IWorkoutProgramRepository repo) =>
+{
+    await repo.DeleteAsync(id);
+    return Results.NoContent();
+});
 
 app.Run();

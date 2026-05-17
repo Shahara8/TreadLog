@@ -1,0 +1,80 @@
+@page "/programs"
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<div class="section-header">
+    <div class="page-title" style="margin-bottom:0">Programs</div>
+    <button class="btn btn-primary btn-sm" @onclick="NewProgram">+ New</button>
+</div>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_loading)
+{
+    <div class="text-muted mt-2">Loading...</div>
+}
+else if (!_programs.Any())
+{
+    <div class="text-muted mt-2">No programs yet. Create one to get started.</div>
+}
+else
+{
+    <div class="session-list mt-2">
+        @foreach (var p in _programs)
+        {
+            var totalSecs = p.Steps.Sum(s => s.DurationSeconds);
+            var totalKm   = p.Steps.Sum(s => s.SpeedKmh * s.DurationSeconds / 3600.0);
+            <div class="session-card">
+                <div class="session-card-top">
+                    <span class="session-date">@p.Name</span>
+                    <span class="session-dist">@($"{totalKm:F2} km")</span>
+                </div>
+                <div class="session-meta">
+                    <span class="session-meta-item">&#x1F4CC; @p.Steps.Count steps</span>
+                    <span class="session-meta-item">&#x23F1; @FormatDuration(totalSecs)</span>
+                    @if (!string.IsNullOrWhiteSpace(p.Description))
+                    {
+                        <span class="session-meta-item">@p.Description</span>
+                    }
+                </div>
+                <div class="session-actions">
+                    <button class="btn btn-ghost btn-sm" @onclick="() => Edit(p.Id)">Edit</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => Delete(p.Id)">Delete</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<WorkoutProgram> _programs = new();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try   { _programs = (await Api.GetProgramsAsync()) ?? new(); }
+        catch (Exception ex) { _error = $"Error: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private void NewProgram() => Nav.NavigateTo("/programs/edit");
+    private void Edit(int id) => Nav.NavigateTo($"/programs/edit?id={id}");
+
+    private async Task Delete(int id)
+    {
+        try   { await Api.DeleteProgramAsync(id); await LoadAsync(); }
+        catch (Exception ex) { _error = $"Error: {ex.Message}"; }
+    }
+
+    private static string FormatDuration(int s)
+        => s >= 3600
+            ? $"{s / 3600}:{s % 3600 / 60:D2}:{s % 60:D2}"
+            : $"{s / 60}:{s % 60:D2}";
+}

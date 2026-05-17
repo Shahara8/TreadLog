@@ -19,10 +19,10 @@ public class WorkoutRepository : IWorkoutRepository
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO workoutsessions
                 (sessiondate, durationseconds, distancekm, avgspeedkmh, inclinepercent,
-                 caloriesburned, avgheartrate, createdat, updatedat)
+                 caloriesburned, avgheartrate, createdat, updatedat, programid, completed)
             VALUES
                 (@SessionDate, @DurationSeconds, @DistanceKm, @AvgSpeedKmh, @InclinePercent,
-                 @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt)
+                 @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt, @ProgramId, @Completed)
             RETURNING id;", conn);
 
         BindSessionParams(cmd, session);
@@ -43,7 +43,9 @@ public class WorkoutRepository : IWorkoutRepository
                 inclinepercent  = @InclinePercent,
                 caloriesburned  = @CaloriesBurned,
                 avgheartrate    = @AvgHeartRate,
-                updatedat       = @UpdatedAt
+                updatedat       = @UpdatedAt,
+                programid       = @ProgramId,
+                completed       = @Completed
             WHERE id = @Id;", conn);
 
         BindSessionParams(cmd, session);
@@ -76,10 +78,10 @@ public class WorkoutRepository : IWorkoutRepository
                 await using var cmd = new NpgsqlCommand(@"
                     INSERT INTO workoutsessions
                         (sessiondate, durationseconds, distancekm, avgspeedkmh, inclinepercent,
-                         caloriesburned, avgheartrate, createdat, updatedat)
+                         caloriesburned, avgheartrate, createdat, updatedat, programid, completed)
                     VALUES
                         (@SessionDate, @DurationSeconds, @DistanceKm, @AvgSpeedKmh, @InclinePercent,
-                         @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt)
+                         @CaloriesBurned, @AvgHeartRate, @CreatedAt, @UpdatedAt, @ProgramId, @Completed)
                     ON CONFLICT (sessiondate) DO NOTHING;", conn, tx);
                 BindSessionParams(cmd, session);
                 inserted += await cmd.ExecuteNonQueryAsync();
@@ -126,7 +128,8 @@ public class WorkoutRepository : IWorkoutRepository
 
     private const string SelectSql = @"
         SELECT id, sessiondate, durationseconds, distancekm, avgspeedkmh,
-               inclinepercent, caloriesburned, avgheartrate, createdat, updatedat
+               inclinepercent, caloriesburned, avgheartrate, createdat, updatedat,
+               programid, completed
         FROM workoutsessions";
 
     private static void BindSessionParams(NpgsqlCommand cmd, WorkoutSession s)
@@ -140,7 +143,9 @@ public class WorkoutRepository : IWorkoutRepository
         cmd.Parameters.AddWithValue("@AvgHeartRate",    (object?)s.AvgHeartRate   ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@CreatedAt",
             string.IsNullOrEmpty(s.CreatedAt) ? DateTime.UtcNow.ToString("o") : s.CreatedAt);
-        cmd.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow.ToString("o"));
+        cmd.Parameters.AddWithValue("@UpdatedAt",  DateTime.UtcNow.ToString("o"));
+        cmd.Parameters.AddWithValue("@ProgramId",  (object?)s.ProgramId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@Completed",  s.Completed);
     }
 
     private static WorkoutSession MapRow(NpgsqlDataReader r) => new()
@@ -155,7 +160,9 @@ public class WorkoutRepository : IWorkoutRepository
         CaloriesBurned  = r.IsDBNull(6) ? null : r.GetInt32(6),
         AvgHeartRate    = r.IsDBNull(7) ? null : r.GetInt32(7),
         CreatedAt       = r.GetString(8),
-        UpdatedAt       = r.GetString(9)
+        UpdatedAt       = r.GetString(9),
+        ProgramId       = r.IsDBNull(10) ? null : r.GetInt32(10),
+        Completed       = r.GetBoolean(11)
     };
 
     private static async Task<List<WorkoutSession>> ReadListAsync(NpgsqlCommand cmd)

@@ -29,4 +29,10 @@ public class WorkoutSession
 
     /// <summary>Last-modified timestamp stored verbatim as ISO 8601 TEXT from SQLite.</summary>
     public string UpdatedAt { get; set; } = string.Empty;
+
+    /// <summary>Program used for this session; null means free run.</summary>
+    public int? ProgramId { get; set; }
+
+    /// <summary>True if the full program was completed; false if stopped early.</summary>
+    public bool Completed { get; set; } = true;
 }

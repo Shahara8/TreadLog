@@ -9,7 +9,33 @@ public class DatabaseService : IDatabaseService
 
     public DatabaseService(string connectionString)
     {
-        _connectionString = connectionString;
+        _connectionString = NormalizeConnectionString(connectionString);
+    }
+
+    // Neon gives a postgresql:// URI; Npgsql needs Host=...;Database=... format
+    private static string NormalizeConnectionString(string cs)
+    {
+        if (!cs.StartsWith("postgresql://") && !cs.StartsWith("postgres://"))
+            return cs;
+
+        var uri  = new Uri(cs.Replace("postgresql://", "http://").Replace("postgres://", "http://"));
+        var user = uri.UserInfo.Split(':', 2);
+        var host = uri.Host;
+        var port = uri.Port is > 0 and not 80 ? uri.Port : 5432;
+        var db   = uri.AbsolutePath.TrimStart('/');
+        var uid  = Uri.UnescapeDataString(user[0]);
+        var pwd  = user.Length > 1 ? Uri.UnescapeDataString(user[1]) : "";
+
+        var sslMode = "Require";
+        if (uri.Query.Length > 1)
+            foreach (var part in uri.Query[1..].Split('&'))
+            {
+                var kv = part.Split('=', 2);
+                if (kv.Length == 2 && kv[0].Equals("sslmode", StringComparison.OrdinalIgnoreCase))
+                    sslMode = kv[1];
+            }
+
+        return $"Host={host};Port={port};Database={db};Username={uid};Password={pwd};SSL Mode={sslMode};Trust Server Certificate=true";
     }
 
     public NpgsqlConnection CreateConnection() => new(_connectionString);
